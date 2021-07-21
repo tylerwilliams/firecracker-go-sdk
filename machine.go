@@ -474,11 +474,11 @@ func (m *Machine) addVsocks(ctx context.Context, vsocks ...VsockDevice) error {
 
 func (m *Machine) attachDrives(ctx context.Context, drives ...models.Drive) error {
 	for _, dev := range drives {
-		if err := m.attachDrive(ctx, dev); err != nil {
+		if err := m.AttachDrive(ctx, dev); err != nil {
 			m.logger.Errorf("While attaching drive %s, got error %s", StringValue(dev.PathOnHost), err)
 			return err
 		}
-		m.logger.Debugf("attachDrive returned for %s", StringValue(dev.PathOnHost))
+		m.logger.Debugf("AttachDrive returned for %s", StringValue(dev.PathOnHost))
 	}
 
 	return nil
@@ -552,7 +552,7 @@ func (m *Machine) startVMM(ctx context.Context) error {
 	m.setupSignals()
 
 	// Wait for firecracker to initialize:
-	err = m.waitForSocket(time.Duration(m.client.firecrackerInitTimeout)*time.Second, errCh)
+	err = m.WaitForSocket(time.Duration(m.client.firecrackerInitTimeout)*time.Second, errCh)
 	if err != nil {
 		err = errors.Wrapf(err, "Firecracker did not create API socket %s", m.Cfg.SocketPath)
 		m.fatalErr = err
@@ -818,7 +818,7 @@ func (m *Machine) UpdateGuestNetworkInterfaceRateLimit(ctx context.Context, ifac
 }
 
 // attachDrive attaches a secondary block device
-func (m *Machine) attachDrive(ctx context.Context, dev models.Drive) error {
+func (m *Machine) AttachDrive(ctx context.Context, dev models.Drive) error {
 	hostPath := StringValue(dev.PathOnHost)
 	m.logger.Infof("Attaching drive %s, slot %s, root %t.", hostPath, StringValue(dev.DriveID), BoolValue(dev.IsRootDevice))
 	respNoContent, err := m.client.PutGuestDriveByID(ctx, StringValue(dev.DriveID), &dev)
@@ -976,8 +976,8 @@ func (m *Machine) refreshMachineConfiguration() error {
 	return nil
 }
 
-// waitForSocket waits for the given file to exist
-func (m *Machine) waitForSocket(timeout time.Duration, exitchan chan error) error {
+// WaitForSocket waits for the given file to exist
+func (m *Machine) WaitForSocket(timeout time.Duration, exitchan chan error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 
 	ticker := time.NewTicker(10 * time.Millisecond)
@@ -1085,10 +1085,26 @@ func (m *Machine) CreateSnapshot(ctx context.Context, memFilePath, snapshotPath 
 	return nil
 }
 
+// LoadSnapshot load a snapshot
+func (m *Machine) LoadSnapshot(ctx context.Context, memFilePath, snapshotPath string, opts ...LoadSnapshotOpt) error {
+	snapshotParams := &models.SnapshotLoadParams{
+		MemFilePath:  String(memFilePath),
+		SnapshotPath: String(snapshotPath),
+	}
+
+	if _, err := m.client.LoadSnapshot(ctx, snapshotParams, opts...); err != nil {
+		m.logger.Errorf("failed to load a snapshot for VM: %v", err)
+		return err
+	}
+
+	m.logger.Debug("snapshot created successfully")
+	return nil
+}
+
 // CreateBalloon creates a balloon device if one does not exist
 func (m *Machine) CreateBalloon(ctx context.Context, amountMib int64, deflateOnOom bool, statsPollingIntervals int64, opts ...PutBalloonOpt) error {
 	balloon := models.Balloon{
-		AmountMib:              &amountMib,
+		AmountMib:             &amountMib,
 		DeflateOnOom:          &deflateOnOom,
 		StatsPollingIntervals: statsPollingIntervals,
 	}
